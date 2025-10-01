@@ -6,6 +6,6 @@
 
 Організація коду TypeScript у Web-застосунках: модульність з використанням ООП
 
-Застосування методів рефакторингу: Replace Union with Enum, Introduce Mapped Type, Introduce Type Guard
+Методи рефакторингу коду в TypeScript: Replace Union with Enum, Introduce Mapped Type, Introduce Type Guard
 
 Повна назва міні-проєкту ЛР українською мовою
