@@ -6,6 +6,6 @@
 
 Організація коду TypeScript у Web-застосунках
 
-Методи рефакторингу коду в TypeScript: Replace Union with Enum, Introduce Mapped Type, Introduce Type Guard
+Методи рефакторингу коду в TypeScript: Extract Method, Move Method, Replace Temp with Query
 
 Система для відстеження щоденного вживання води
