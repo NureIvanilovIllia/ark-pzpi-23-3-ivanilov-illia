@@ -1,0 +1,766 @@
+ХАРКІВСЬКИЙ НАЦІОНАЛЬНИЙ
+УНІВЕРСИТЕТ РАДІОЕЛЕКТРОНІКИ
+ 
+Кафедра «Програмної інженерії»
+ 
+ 
+
+
+
+
+ЗВІТ
+з лабораторної роботи № 3
+з дисципліни «Аналіз та рефакторинг коду»
+ 
+
+
+
+ 
+
+
+
+
+
+
+
+
+
+
+Виконав:                                                                       ст. викладач кафедри ПІ:
+ст. гр. ПЗПІ-23-3                                                                Сокорчук Ігор Петрович
+Іванілов І. В.
+
+
+
+
+
+
+
+
+
+
+
+Харків 2025
+
+
+
+
+
+
+
+
+1 ІСТОРІЯ ЗМІН
+Таблиця 1.1 - Історія змін
+№
+	Дата
+	Версія звіту
+	Опис змін та виправлень
+	1
+	22.12.2025
+	0.1
+	Створено звіт
+	2 ЗАВДАННЯ
+Мета роботи:
+Ознайомитися з процесом розробки бізнес логіки та функцій адміністрування серверної частини програмної системи. Отримати практичні навички реалізації бізнес логіки, функцій адміністрування, створення UML-діаграм діяльності та взаємодії, а також перевірки (тестування) роботи серверної частини.
+Завдання:
+1. Розробити бізнес логіку серверної частини програмної системи:
+– Спроектувати алгоритми, що будуть реалізовані в бізнес логіці. Бізнес логіка повинна забезпечувати основні операції з даними, обробку запитів від клієнтів, та виконання специфічних правил роботи системи.
+2. Розробити функції адміністрування серверної частини програмної системи:
+– Розробити функції, які забезпечуватимуть адміністрування системи, наприклад, управління користувачами, налаштування системних параметрів, моніторинг активності, доступ до логів та управління ролями.
+3. Створити програмну реалізацію бізнес логіки та функцій адміністрування серверної частини:
+– Реалізувати програмний код для бізнес логіки на серверній частині, включаючи обробку запитів до бази даних та взаємодію з клієнтами.
+– Реалізувати програмний код для функцій адміністрування, зокрема функції управління користувачами, моніторингу, та зміни системних параметрів.
+4. Перевірити роботу серверної частини системи:
+– Провести тестування розроблених функцій бізнес логіки та адміністрування. Переконатися у коректній роботі всіх розроблених компонентів та їх взаємодії з клієнтами і базою даних.
+
+
+3 ОПИС ВИКОНАНОЇ РОБОТИ
+3.1 Бізнес-логіка серверної частини
+Послідовність роботи системи починається з моменту створення профілю користувача. Після збереження основних параметрів автоматично формується щоденний план на поточну дату, у якому розраховується цільовий обсяг води, кількість рекомендованих прийомів та початкове відхилення.
+Щоденний план, який формується на основі даних профілю користувача, його активностей та фактичних прийомів води. 
+Цільовий обсяг води визначається формулою, що враховує масу тіла користувача, базовий коефіцієнт у 35 мілілітрів на кілограм, рівень фізичної активності та поточну ціль користувача. Наприклад, для користувача з масою тіла 70 кілограмів, середнім рівнем активності та ціллю підтримання ваги, цільовий обсяг становить приблизно 2700 мілілітрів води на добу.
+Функція розрахунку цільового плану води:
+const getActivityFactor = (activityLevel?: string | null): number => {
+    switch (activityLevel) {
+        case "low": return 1.0;
+        case "medium": return 1.1;
+        case "high": return 1.2;
+        default: return 1.0;
+    }
+};
+
+
+const getGoalFactor = (goalType?: string | null): number => {
+    switch (goalType) {
+        case "lose_weight": return 1.05;
+        case "gain_muscle": return 1.1;
+        case "maintain": return 1.0;
+        default: return 1.0;
+    }
+};
+
+
+export const calculateTargetMl = (
+    weightKg?: number | null,
+    activityLevel?: string | null,
+    goalType?: string | null
+): number | null => {
+    if (!weightKg) return null;
+    const activityFactor = getActivityFactor(activityLevel);
+const goalFactor = getGoalFactor(goalType);
+return Math.round((weightKg * 35 * activityFactor * goalFactor) / 100) * 100;
+};
+
+
+На основі розрахованого цільового обсягу система визначає рекомендовану кількість прийомів води протягом дня. Для цього загальний обсяг ділиться на умовний стандартний об’єм одного прийому, який дорівнює 250 мілілітрам, після чого результат округлюється до найближчого цілого числа. 
+Функція розрахунку кількості прийомів води протягом дня:
+export const calculateAmountOfIntakes = (targetMl: number | null): number | null => {
+    if (!targetMl) return null;
+    return Math.round(targetMl / 250);
+};
+
+
+Частиною логіки є визначення відхилення від рекомендованого графіка споживання води. Для цього система обчислює, скільки годин минуло від початку доби до поточного моменту, переводячи різницю часу з мілісекунд у години. Якщо розрахований час виходить за межі доби, він обмежується максимумом у 24 години. Далі система визначає очікуваний обсяг випитої води на поточний момент, виходячи з припущення рівномірного споживання води протягом 24 годин. Відхилення розраховується як різниця між фактично випитим обсягом і очікуваним значенням. Негативне значення означає відставання від графіка, а позитивне — випередження. Наприклад, якщо через 18 годин після початку доби користувач випив 1500 мілілітрів при цільових 2700, система зафіксує відхилення приблизно мінус 500 мілілітрів.
+Функція розрахунку відхилення від рекомендованого обсягу споживання води:
+export const calculateDeviationMl = async (
+    dailyplanId: number,
+    totalIntakeMl: number
+): Promise<number | null> => {
+    const plan = await prisma.dailyPlan.findUnique({
+        where: { dailyplan_id: dailyplanId },
+    });
+
+
+    if (!plan || !plan.target) return null;
+
+
+    const now = new Date();
+    const planStartOfDay = normalizeToStartOfDay(plan.date);
+    const elapsedMs = now.getTime() - planStartOfDay.getTime();
+    const elapsedHours = elapsedMs / (1000 * 60 * 60);
+
+
+    if (elapsedHours < 0) {
+        return Math.round(totalIntakeMl / 100) * 100;
+    }
+
+
+    const activeHours = Math.min(elapsedHours, 24);
+    const expectedMl = (plan.target / 24) * activeHours;
+    const deviation = totalIntakeMl - expectedMl;
+    return Math.round(deviation / 100) * 100;
+};
+
+
+Кожна активність має тривалість та інтенсивність, на основі яких система обчислює додатковий бонус води. Для цього тривалість активності в хвилинах множиться на коефіцієнт інтенсивності, який відображає додаткову потребу у воді залежно від навантаження. Наприклад, одна година інтенсивного тренування додає приблизно 600 мілілітрів до добової норми. 
+Функція для розрахунку додаткового обсягу води: 
+const getIntensityFactor = (intensity?: string | null): number => {
+    switch (intensity) {
+        case "low": return 4;
+        case "medium": return 7;
+        case "high": return 10;
+        default: return 0;
+    }
+};
+
+
+const calculateWaterBonusMl = (
+    durationMin?: number | null,
+    intensity?: string | null
+): number | null => {
+    if (!durationMin || !intensity) return null;
+    return durationMin * getIntensityFactor(intensity);
+};
+
+
+const timeValidation = (data: { start_time?: Date; end_time?: Date }) => {
+    if (data.start_time && data.end_time) {
+        return data.start_time < data.end_time;
+    }
+    return true;
+};
+
+
+Коли користувач додає прийом води, система спочатку зберігає сам факт прийому, після чого оновлює щоденний план. Вона підсумовує обсяги всіх прийомів за день, оновлює загальний випитий обсяг та перераховує відхилення від графіка. Після цього запускається логіка створення рекомендацій, яка аналізує поточний стан та, за необхідності, формує відповідні нотифікації.
+Алгоритми рекомендацій базуються на значенні відхилення, параметрах прийомів води та активностей. При значному відставанні від графіка система створює рекомендації середнього або високого пріоритету. Якщо користувач споживає занадто великі порції або робить прийоми надто рідко, система також реагує відповідними рекомендаціями. У випадках, коли користувач дотримується графіка або навіть трохи його випереджає, формуються позитивні рекомендації низького пріоритету, які підкріплюють правильну поведінку. 
+
+
+3.2 Адміністрування системи
+Адміністратор працює з користувачами, їхніми ролями, щоденними планами, активностями, прийомами води та агрегованою статистикою. Усі адміністративні дії виконуються через захищені API-ендпоінти, доступ до яких мають лише користувачі з роллю admin.
+Основною сутністю, з якою працює адміністратор, є користувач. Адміністратор може переглядати список усіх користувачів системи з базовою інформацією, такою як ідентифікатор, email, роль, дата реєстрації та статус активності. Для цього використовується запит типу GET до ендпоінту /api/users, який повертає пагінований список користувачів.
+        Функція для отримання всіх користувачів:
+async findAll(filters?: {
+        email?: string;
+        role?: string;
+        status?: string;
+    }) {
+        const where: any = {};
+        if (filters?.email) {
+            where.email = { contains: filters.email, mode: "insensitive" };
+        }
+        if (filters?.role) {
+            where.role = filters.role;
+        }
+        if (filters?.status) {
+            where.status = filters.status;
+        }
+        return prisma.user.findMany({ where });
+    }
+
+
+Зміна ролі виконується через HTTP-запит типу PATCH до ендпоінту /api/users/{userId}/role. У тілі запиту передається нова роль користувача:
+
+
+{
+"role": "admin"
+}
+Обробка PATCH-запиту:
+async update(id: number, data: unknown) {
+        await this.findById(id);
+        const validated = updateUserSchema.parse(data);
+        if (validated.email) {
+            const existing = await prisma.user.findUnique({
+                where: { email: validated.email },
+            });
+            if (existing && existing.user_id !== id) {
+                throw new ConflictError("User with this email already exists");
+            }
+        }
+        return prisma.user.update({
+            where: { user_id: id },
+            data: validated,
+        });
+    }
+
+
+Після виконання цього запиту система оновлює роль користувача в базі даних, і всі наступні перевірки доступу виконуються вже з урахуванням нової ролі. 
+Адміністратор також має можливість видаляти користувачів із системи. Видалення виконується через DELETE-запит до ендпоінту /api/users/{userId}. Під час цієї операції система повністю видаляє пов’язані дані користувача. Бізнес-логіка передбачає каскадну обробку, при якій щоденні плани, прийоми води, активності, рекомендації та нотифікації користувача також видаляються.
+Обробка DELETE-запиту:
+async delete(id: number) {
+        await this.findById(id);
+        await prisma.user.delete({
+            where: { user_id: id },
+        });
+    },
+
+
+Окрім роботи з користувачами, адміністратор може переглядати агреговані дані щодо щоденних планів.. Для цього використовується GET-запит до ендпоінту /api/daily-plans, який повертає зведену інформацію або дані з можливістю фільтрації за датою та користувачем. Адміністратор не змінює ці дані вручну, оскільки вони формуються автоматично бізнес-логікою системи.
+Система формує агреговані метрики на основі всіх щоденних планів та прийомів води. До таких метрик належать середній цільовий обсяг води, середній фактичний обсяг випитої води, середній обсяг одного прийому та загальний відсоток виконання планів. Ці значення обчислюються за допомогою формул:
+average_target = sum(all_plans.target) / count(plans)
+average_intake = sum(all_plans.total_intake_ml) / count(plans)
+average_intake_per_portion = sum(all_intakes.volume_ml) / count(intakes)
+completion_percentage = (sum(total_intake_ml) / sum(target)) × 100
+Приклад зведеної статистики:
+{
+  "ok":true,"data":
+  {
+    "average_target":3500,
+    "average_intake":1200,
+    "average_intake_per_portion":300,
+    "completion_percentage":34.29,
+    "breakdown":[]
+  }
+}
+
+
+Статистика може групуватися за днями, шляхом агрегації за датою щоденного плану, за користувачами через ідентифікатор користувача, а також за рівнями активності, що беруться з профілю користувача.
+
+
+
+
+4 ВИСНОВКИ
+У ході лабораторної роботи було спроектовано та реалізовано повноцінну бізнес-логіку системи контролю споживання води. Система побудована навколо щоденного плану, який виступає центральним агрегатом даних і об’єднує інформацію профілю користувача, фактичні прийоми води, фізичні активності та результати аналітичних розрахунків.
+Реалізовано механізм автоматичного розрахунку добової норми води на основі маси тіла, рівня активності та цілі користувача, а також алгоритм визначення рекомендованої кількості прийомів протягом дня. Система динамічно перераховує ці показники при зміні профілю користувача або додаванні активностей, що дозволяє враховувати реальні потреби організму в конкретний день.
+Реалізація прийомів води та фізичних активностей супроводжується автоматичним оновленням щоденного плану, перерахунком відхилення від графіка та формуванням рекомендацій. 
+Реалізовано адміністративний функціонал, який забезпечує управління користувачами, ролями та доступом до системи, а також розширену аналітику. Адміністратор має змогу переглядати агреговану статистику споживання води, активностей, виконання щоденних планів і ефективності рекомендацій, що дозволяє оцінювати роботу системи на рівні всієї платформи.
+Система реалізована як цілісний набір взаємопов’язаних алгоритмів і сервісів, у яких всі ключові показники обчислюються автоматично на сервері. Такий підхід забезпечує коректність даних, масштабованість рішення та можливість подальшого розвитку бізнес-логіки без зміни базової архітектури.
+
+
+ДОДАТОК А
+Відеозапис
+        Відеозапис презентації результатів лабораторної роботи: https://youtu.be/VwZMcbJVAx4
+00:16 Опис реалізованої бізнес-логіки
+01:02 Розрахунок цільового обсягу води
+01:38 Розрахунок кількості прийомів води
+02:06 Розрахунок відхилення від графіку
+03:46 Опис рекомендацій 
+04:35 Опис адміністрування системи
+05:30 Формування статистики
+06:12 Тестування системи
+06:37 Тестування щоденних планів
+08:13 Тестування рекомендацій
+
+
+
+
+
+
+
+
+
+
+ДОДАТОК Б
+Програмний код
+Логіка для щоденних планів:
+const getActivityFactor = (activityLevel?: string | null): number => {
+    switch (activityLevel) {
+        case "low": return 1.0;
+        case "medium": return 1.1;
+        case "high": return 1.2;
+        default: return 1.0;
+    }
+};
+
+
+const getGoalFactor = (goalType?: string | null): number => {
+    switch (goalType) {
+        case "lose_weight": return 1.05;
+        case "gain_muscle": return 1.1;
+        case "maintain": return 1.0;
+        default: return 1.0;
+    }
+};
+
+
+export const calculateTargetMl = (
+    weightKg?: number | null,
+    activityLevel?: string | null,
+    goalType?: string | null
+): number | null => {
+    if (!weightKg) return null;
+    const activityFactor = getActivityFactor(activityLevel);
+    const goalFactor = getGoalFactor(goalType);
+    return Math.round((weightKg * 35 * activityFactor * goalFactor) / 100) * 100;
+};
+
+
+export const calculateAmountOfIntakes = (targetMl: number | null): number | null => {
+    if (!targetMl) return null;
+    return Math.round(targetMl / 250);
+};
+
+
+export const calculateDeviationMl = async (
+    dailyplanId: number,
+    totalIntakeMl: number
+): Promise<number | null> => {
+    const plan = await prisma.dailyPlan.findUnique({
+        where: { dailyplan_id: dailyplanId },
+    });
+
+
+    if (!plan || !plan.target) return null;
+
+
+    const now = new Date();
+    const planStartOfDay = normalizeToStartOfDay(plan.date);
+    const elapsedMs = now.getTime() - planStartOfDay.getTime();
+    const elapsedHours = elapsedMs / (1000 * 60 * 60);
+
+
+    if (elapsedHours < 0) {
+        return Math.round(totalIntakeMl / 100) * 100;
+    }
+
+
+    const activeHours = Math.min(elapsedHours, 24);
+    const expectedMl = (plan.target / 24) * activeHours;
+    const deviation = totalIntakeMl - expectedMl;
+    return Math.round(deviation / 100) * 100;
+};
+
+
+const createDailyPlanSchema = z.object({
+    user_id: z.number().int(),
+    date: z
+        .union([z.string().datetime(), z.date()])
+        .optional()
+        .transform((val) => {
+            const date = val ? (val instanceof Date ? val : new Date(val)) : new Date();
+            return normalizeToStartOfDay(date);
+        }),
+    target: z.number().optional(),
+    total_intake_ml: z.number().optional(),
+    deviation_ml: z.number().optional(),
+    amount_of_intakes: z.number().int().optional(),
+});
+
+
+const updateDailyPlanSchema = z.object({
+    user_id: z.number().int().optional(),
+    date: z
+        .string()
+        .datetime()
+        .optional()
+        .transform((val) => (val ? normalizeToStartOfDay(new Date(val)) : undefined)),
+    target: z.number().optional(),
+    total_intake_ml: z.number().optional(),
+    deviation_ml: z.number().optional(),
+    amount_of_intakes: z.number().int().optional(),
+});
+
+
+export type CreateDailyPlanInput = z.infer<typeof createDailyPlanSchema>;
+export type UpdateDailyPlanInput = z.infer<typeof updateDailyPlanSchema>;
+
+
+export const dailyPlanService = {
+    async findAll(filters?: { user_id?: number; date?: string }) {
+        const where: any = {};
+        if (filters?.user_id !== undefined) {
+            where.user_id = filters.user_id;
+        }
+        if (filters?.date) {
+            const date = new Date(filters.date);
+            const startOfDay = new Date(date);
+            startOfDay.setHours(0, 0, 0, 0);
+            const endOfDay = new Date(date);
+            endOfDay.setHours(23, 59, 59, 999);
+            where.date = { gte: startOfDay, lte: endOfDay };
+        }
+        return prisma.dailyPlan.findMany({ where });
+    },
+
+
+    async findById(id: number) {
+        const plan = await prisma.dailyPlan.findUnique({
+            where: { dailyplan_id: id },
+        });
+        if (!plan) {
+            throw new NotFoundError("DailyPlan", id.toString());
+        }
+        return plan;
+    },
+
+
+    async create(data: unknown) {
+        const validated = createDailyPlanSchema.parse(data);
+        const user = await prisma.user.findUnique({
+            where: { user_id: validated.user_id },
+        });
+        if (!user) {
+            throw new NotFoundError("User", validated.user_id.toString());
+        }
+
+
+        const plan = await prisma.dailyPlan.create({
+            data: {
+                user_id: validated.user_id,
+                date: validated.date,
+                target: validated.target,
+                total_intake_ml: validated.total_intake_ml || 0,
+                deviation_ml: validated.deviation_ml,
+                amount_of_intakes: validated.amount_of_intakes,
+            },
+        });
+
+
+        if (plan.target) {
+            const recalculatedDeviation = await calculateDeviationMl(
+                plan.dailyplan_id,
+                plan.total_intake_ml || 0
+            );
+            if (recalculatedDeviation !== null && recalculatedDeviation !== plan.deviation_ml) {
+                return this.update(plan.dailyplan_id, {
+                    deviation_ml: recalculatedDeviation,
+                });
+            }
+        }
+
+
+        return plan;
+    },
+
+
+    async update(id: number, data: unknown) {
+        await this.findById(id);
+        const validated = updateDailyPlanSchema.parse(data);
+        if (validated.user_id !== undefined) {
+            const user = await prisma.user.findUnique({
+                where: { user_id: validated.user_id },
+            });
+            if (!user) {
+                throw new NotFoundError("User", validated.user_id.toString());
+            }
+        }
+        return prisma.dailyPlan.update({
+            where: { dailyplan_id: id },
+            data: validated,
+        });
+    },
+
+
+    async delete(id: number) {
+        await this.findById(id);
+        await prisma.dailyPlan.delete({
+            where: { dailyplan_id: id },
+        });
+    },
+
+
+    async recalculateFromIntakes(dailyplanId: number) {
+        await this.findById(dailyplanId);
+
+
+        const intakes = await prisma.intake.findMany({
+            where: { dailyplan_id: dailyplanId },
+        });
+
+
+        const totalIntakeMl = intakes.reduce(
+            (sum, intake) => sum + (intake.volume_ml || 0),
+            0
+        );
+
+
+        const deviationMl = await calculateDeviationMl(dailyplanId, totalIntakeMl);
+
+
+        return this.update(dailyplanId, {
+            total_intake_ml: totalIntakeMl,
+            deviation_ml: deviationMl,
+        });
+    },
+
+
+    async recalculateFromActivities(dailyplanId: number) {
+        const plan = await this.findById(dailyplanId);
+
+
+        const activities = await prisma.activity.findMany({
+            where: { dailyplan_id: dailyplanId },
+        });
+
+
+        const totalWaterBonusMl = activities.reduce(
+            (sum, activity) => sum + (activity.water_bonus_ml || 0),
+            0
+        );
+
+
+        const profile = await prisma.userProfile.findFirst({
+            where: { user_id: plan.user_id },
+        });
+
+
+        if (!profile) {
+            const newTarget = (plan.target || 0) + totalWaterBonusMl;
+            await this.update(dailyplanId, {
+                target: newTarget > 0 ? newTarget : null,
+            });
+            await this.recalculateFromIntakes(dailyplanId);
+            return;
+        }
+
+
+        const baseTarget = calculateTargetMl(
+            profile.weight,
+            profile.activity_level,
+            profile.goal_type
+        );
+
+
+        const newTarget = (baseTarget || 0) + totalWaterBonusMl;
+
+
+        await this.update(dailyplanId, {
+            target: newTarget > 0 ? newTarget : null,
+        });
+
+
+        await this.recalculateFromIntakes(dailyplanId);
+    },
+
+
+    async findOrCreateToday(userId: number, profile: {
+        weight?: number | null;
+        activity_level?: string | null;
+        goal_type?: string | null;
+    }) {
+        const today = normalizeToStartOfDay(new Date());
+
+
+        const existingPlan = await prisma.dailyPlan.findFirst({
+            where: {
+                user_id: userId,
+                date: today,
+            },
+        });
+
+
+        const target = calculateTargetMl(
+            profile.weight,
+            profile.activity_level,
+            profile.goal_type
+        );
+        const amountOfIntakes = calculateAmountOfIntakes(target);
+
+
+        if (existingPlan) {
+            await this.update(existingPlan.dailyplan_id, {
+                amount_of_intakes: amountOfIntakes,
+            });
+            await this.recalculateFromActivities(existingPlan.dailyplan_id);
+            return this.findById(existingPlan.dailyplan_id);
+        }
+
+
+        const todayUTC = new Date(Date.UTC(
+            today.getUTCFullYear(),
+            today.getUTCMonth(),
+            today.getUTCDate(),
+            0, 0, 0, 0
+        ));
+
+
+        return this.create({
+            user_id: userId,
+            date: todayUTC.toISOString(),
+            target,
+            total_intake_ml: 0,
+            deviation_ml: 0,
+            amount_of_intakes: amountOfIntakes,
+        });
+    },
+};
+Логіка прийомів води:
+const createIntakeSchema = z.object({
+    dailyplan_id: z.number().int(),
+    volume_ml: z.number().optional(),
+    intake_time: z.iso
+        .datetime()
+        .optional()
+        .transform((val) => (val ? new Date(val) : undefined)),
+});
+
+
+const updateIntakeSchema = z.object({
+    dailyplan_id: z.number().int().optional(),
+    volume_ml: z.number().optional(),
+    intake_time: z.iso
+        .datetime()
+        .optional()
+        .transform((val) => (val ? new Date(val) : undefined)),
+});
+
+
+export type CreateIntakeInput = z.infer<typeof createIntakeSchema>;
+export type UpdateIntakeInput = z.infer<typeof updateIntakeSchema>;
+
+
+export const intakeService = {
+    async findAll(filters?: {
+        dailyplan_id?: number;
+        from?: string;
+        to?: string;
+    }) {
+        const where: any = {};
+        if (filters?.dailyplan_id !== undefined) {
+            where.dailyplan_id = filters.dailyplan_id;
+        }
+        if (filters?.from || filters?.to) {
+            where.intake_time = {};
+            if (filters?.from) {
+                where.intake_time.gte = new Date(filters.from);
+            }
+            if (filters?.to) {
+                where.intake_time.lte = new Date(filters.to);
+            }
+        }
+        return prisma.intake.findMany({ where });
+    },
+
+
+    async findById(id: number) {
+        const intake = await prisma.intake.findUnique({
+            where: { intake_id: id },
+        });
+        if (!intake) {
+            throw new NotFoundError("Intake", id.toString());
+        }
+        return intake;
+    },
+
+
+    async create(data: unknown) {
+        const validated = createIntakeSchema.parse(data);
+        const dailyPlan = await prisma.dailyPlan.findUnique({
+            where: { dailyplan_id: validated.dailyplan_id },
+        });
+        if (!dailyPlan) {
+            throw new NotFoundError(
+                "DailyPlan",
+                validated.dailyplan_id.toString()
+            );
+        }
+
+
+        const intake = await prisma.intake.create({
+            data: {
+                dailyplan_id: validated.dailyplan_id,
+                volume_ml: validated.volume_ml || 0,
+                intake_time: validated.intake_time || new Date(),
+            },
+        });
+
+
+        await dailyPlanService.recalculateFromIntakes(validated.dailyplan_id);
+        await recommendationService.createRecommendationsForIntake(intake.intake_id);
+
+
+        return intake;
+    },
+
+
+    async update(id: number, data: unknown) {
+        const existingIntake = await this.findById(id);
+        const validated = updateIntakeSchema.parse(data);
+        if (validated.dailyplan_id !== undefined) {
+            const dailyPlan = await prisma.dailyPlan.findUnique({
+                where: { dailyplan_id: validated.dailyplan_id },
+            });
+            if (!dailyPlan) {
+                throw new NotFoundError(
+                    "DailyPlan",
+                    validated.dailyplan_id.toString()
+                );
+            }
+        }
+
+
+        const updatedIntake = await prisma.intake.update({
+            where: { intake_id: id },
+            data: validated,
+        });
+
+
+        await dailyPlanService.recalculateFromIntakes(
+            existingIntake.dailyplan_id
+        );
+        if (
+            validated.dailyplan_id !== undefined &&
+            validated.dailyplan_id !== existingIntake.dailyplan_id
+        ) {
+            await dailyPlanService.recalculateFromIntakes(
+                validated.dailyplan_id
+            );
+        }
+
+
+        return updatedIntake;
+    },
+
+
+    async delete(id: number) {
+        const intake = await this.findById(id);
+        const dailyplanId = intake.dailyplan_id;
+
+
+        await prisma.intake.delete({
+            where: { intake_id: id },
+        });
+
+
+        await dailyPlanService.recalculateFromIntakes(dailyplanId);
+    },
+};
