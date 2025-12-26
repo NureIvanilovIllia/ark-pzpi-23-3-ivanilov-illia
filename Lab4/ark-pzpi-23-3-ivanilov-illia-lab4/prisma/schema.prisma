@@ -1,0 +1,98 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  user_id    Int @id @default(autoincrement()) @map("user_id")
+  email      String       @unique
+  password   String
+  role       String?
+  status     String?
+  profiles   UserProfile[]
+  dailyPlans DailyPlan[]
+
+  @@map("users")
+}
+
+model UserProfile {
+  profile_id    Int   @id @default(autoincrement()) @map("profile_id")
+  user_id       Int   @map("user_id")
+  weight        Float?
+  activity_level String?
+  goal_type     String?
+  date_of_birth DateTime?
+  user          User     @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+
+  @@map("user_profiles")
+}
+
+model DailyPlan {
+  dailyplan_id     Int      @id @default(autoincrement()) @map("dailyplan_id")
+  user_id          Int      @map("user_id")
+  date             DateTime
+  target           Float?
+  total_intake_ml  Float?      @map("total_intake_ml")
+  deviation_ml     Float?      @map("deviation_ml")
+  amount_of_intakes Int?       @map("amount_of_intakes")
+  user             User        @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+  activities       Activity[]
+  intakes          Intake[]
+
+  @@map("daily_plans")
+}
+
+model Activity {
+  activity_id       Int    @id @default(autoincrement()) @map("activity_id")
+  dailyplan_id      Int    @map("dailyplan_id")
+  activity_type     String?   @map("activity_type")
+  intensity         String?
+  start_time        DateTime? @map("start_time")
+  end_time          DateTime? @map("end_time")
+  duration_min      Int?       @map("duration_min")
+  water_bonus_ml    Float?      @map("water_bonus_ml")
+  dailyPlan         DailyPlan @relation(fields: [dailyplan_id], references: [dailyplan_id], onDelete: Cascade)
+
+  @@map("activities")
+}
+
+model Intake {
+  intake_id      Int          @id @default(autoincrement()) @map("intake_id")
+  dailyplan_id   Int          @map("dailyplan_id")
+  volume_ml      Float?          @map("volume_ml")
+  intake_time    DateTime?       @map("intake_time")
+  dailyPlan      DailyPlan       @relation(fields: [dailyplan_id], references: [dailyplan_id], onDelete: Cascade)
+  recommendations Recommendation[]
+
+  @@map("intakes")
+}
+
+model Recommendation {
+  recommendation_id Int         @id @default(autoincrement()) @map("recommendation_id")
+  intake_id         Int         @map("intake_id")
+  recommend_type    String?        @map("recommend_type")
+  message           String?
+  severity          String?
+  intake            Intake         @relation(fields: [intake_id], references: [intake_id], onDelete: Cascade)
+  notifications     Notification[]
+
+  @@map("recommendations")
+}
+
+model Notification {
+  notification_id   Int         @id @default(autoincrement()) @map("notification_id")
+  recommendation_id Int         @map("recommendation_id")
+  notification_type String?        @map("notification_type")
+  title             String?
+  body              String?
+  status            String?
+  sent_at           DateTime?      @map("sent_at")
+  channel           String?
+  recommendation    Recommendation @relation(fields: [recommendation_id], references: [recommendation_id], onDelete: Cascade)
+
+  @@map("notifications")
+}

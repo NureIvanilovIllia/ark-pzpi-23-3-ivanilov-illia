@@ -1,0 +1,547 @@
+ХАРКІВСЬКИЙ НАЦІОНАЛЬНИЙ
+УНІВЕРСИТЕТ РАДІОЕЛЕКТРОНІКИ
+ 
+Кафедра «Програмної інженерії»
+ 
+ 
+
+
+
+
+ЗВІТ
+з лабораторної роботи № 4
+з дисципліни «Аналіз та рефакторинг коду»
+ 
+
+
+
+ 
+
+
+
+
+
+
+
+
+
+
+Виконав:                                                                       ст. викладач кафедри ПІ:
+ст. гр. ПЗПІ-23-3                                                                Сокорчук Ігор Петрович
+Іванілов І. В.
+
+
+
+
+
+
+
+
+
+
+
+Харків 2025
+
+
+
+
+
+
+
+
+1 ІСТОРІЯ ЗМІН
+Таблиця 1.1 - Історія змін
+№
+	Дата
+	Версія звіту
+	Опис змін та виправлень
+	1
+	22.12.2025
+	0.1
+	Створено звіт
+	2 ЗАВДАННЯ
+Мета роботи:
+Отримати практичні навички з розробки IoT клієнта, включаючи проектування його архітектури, бізнес логіки, налаштувань, та інтеграцію із серверною частиною. Навчитися використовувати UML для створення діаграм прецедентів та діяльності, а також перевіряти функціональність IoT клієнта через тестування та інтеграцію.
+1. Проєктування архітектури IoT-клієнта
+Спроектувати загальну структуру клієнта, враховуючи його призначення та взаємодію із серверною частиною. Архітектура повинна включати модулі обробки даних, мережевих протоколів та управління пристроями.
+2. Створення UML-діаграми прецедентів
+Розробити UML-діаграму прецедентів, що відображає основні сценарії взаємодії користувача та системи з IoT-клієнтом. Прецеденти повинні охоплювати дії, такі як налаштування параметрів клієнта, надсилання даних на сервер, запуск та завершення активностей, а також отримання рекомендацій.
+3. Розробка бізнес-логіки та функцій налаштування
+Реалізувати основну бізнес-логіку для роботи з даними пристроїв: зчитування інформації з сенсорів, обробка даних, розрахунки та відправлення на сервер. Створити функції налаштування IoT-клієнта, включаючи конфігурування мережі, параметрів підключення та управління енергоспоживанням.
+4. Створення UML-діаграми діяльності
+Розробити діаграму діяльності, яка відображає послідовність дій IoT-клієнта під час передачі даних на сервер, підключення до мережі та інших основних процесів.
+5. Програмна реалізація бізнес-логіки та налаштувань
+Реалізувати програмний код для виконання бізнес-логіки та функцій налаштування IoT-клієнта. Включити обробку даних з датчиків та комунікацію із серверною частиною через HTTP або інші мережеві протоколи. Забезпечити можливість конфігурації пристрою, перезавантаження та відновлення параметрів за замовчуванням.
+6. Перевірка роботи IoT-клієнта
+Провести тестування розроблених компонентів, перевірити коректність обміну даними із сервером, функціональність налаштувань та стабільність роботи клієнта у веб-емуляції.
+
+
+
+
+
+
+
+3 ОПИС ВИКОНАНОЇ РОБОТИ
+3.1 Проектування IoT-клієнта
+Опис UML-діаграми діяльності
+          
+Рисунок 3.1 - діаграма діяльності
+Процес починається з ініціалізації клієнта та завантаження конфігураційних параметрів. Після цього виконується перевірка мережевого підключення. У разі відсутності з’єднання клієнт переходить у режим очікування до моменту його відновлення.
+Після успішного підключення клієнт переходить у робочий стан та очікує події початку споживання води. При отриманні події запускається таймер та фіксується початок процесу. Після завершення споживання клієнт фіксує кінець події та розраховує обсяг використаної води на основі тривалості наповнення.
+Далі формується пакет телеметричних даних, який містить обсяг споживання, часові параметри та ідентифікатор плану. Дані передаються на сервер, після чого клієнт очікує відповідь. У разі помилки виконується повторна спроба передачі.
+Після успішної обробки сервером клієнт отримує рекомендації, відображає їх у інтерфейсі та повертається у стан очікування наступної події.
+Опис діаграми прецедентів IoT-клієнту 
+  
+
+Рисунок 3.2 – Діаграма прецедентів
+        Основним актором є Користувач, який керує роботою IoT клієнта через інтерфейс. IoT клієнт взаємодіє із Серверною частиною для передачі даних та отримання рекомендацій.
+Опис основних прецедентів
+   * Налаштувати IoT клієнт: користувач задає параметри мережі, серверного підключення та базові параметри роботи клієнта.
+
+   * Запустити активність або наповнення обсягу води: Користувач ініціює початок споживання води або активності. IoT клієнт фіксує час початку та переходить у режим збору даних.
+   * Завершити активність або завершити наповнення обсягу води: Користувач завершує процес активності. IoT клієнт фіксує час завершення та розраховує обсяг використаної води.
+   * Надіслати дані на сервер: IoT клієнт розраховує та передає зібрані дані про споживання води до серверної частини системи.
+   * Отримати рекомендації: IoT клієнт отримує від сервера рекомендації щодо гідратації та відображає їх користувачу.
+   * Переглянути стан клієнта: Користувач переглядає поточний стан клієнта, статус мережі та останні передані дані.
+        3.2 Модульна архітектура IoT-клієнту
+IoT клієнт реалізований як веб-емуляція розумного пристрою для фіксації споживання води та взаємодії з серверною частиною системи. Архітектура поділена на логічні модулі, кожен з яких відповідає за окрему функціональну зону.
+1. Модуль інтерфейсу користувача
+Призначення: Забезпечує взаємодію користувача з IoT клієнтом та емулює фізичні компоненти пристрою.
+Функції:
+      * відображення віртуальної пляшки та індикатора наповнення;
+      * обробка подій натискання та утримання кнопок;
+      * відображення стану активності;
+      * виведення переданих даних і рекомендацій, отриманих із сервера.
+2. Модуль управління активністю та споживаннями води
+Призначення: реалізує основну бізнес-логіку IoT клієнта.
+Функції:
+      * запуск та завершення активності;
+      * фіксація часу початку і завершення;
+      * обчислення тривалості активності;
+      * ініціація розрахунку об’єму спожитої води.
+3. Модуль розрахунку споживання води та активності
+Призначення: розраховує кількість спожитої води та додатковий обсяг води активності.
+Функції:
+обчислення об’єму води за формулою:
+volume_ml = duration_seconds × flow_rate_ml_per_second
+      * перевірка граничних значень;
+      * підготовка результату для передачі
+4. Модуль обробки та формування даних
+Призначення:
+Готує дані IoT клієнта до надсилання на сервер.
+Функції:
+      * формування payload для API;
+      * прив’язка даних до користувача та денного плану;
+      * валідація структури даних;
+      * підготовка метаданих пристрою.
+5. Мережевий модуль (Network Communication Module)
+Призначення: забезпечує обмін даними між IoT клієнтом і серверною частиною.
+Функції:
+      * надсилання HTTP POST-запитів на /api/iot/intake;
+      * отримання рекомендацій у відповіді сервера;
+      * обробка помилок та повторні спроби відправлення.
+6. Модуль конфігурації IoT клієнта (Configuration Module)
+Призначення:
+Конфігурує налаштування IoT пристрою.
+Функції:
+      * зберігання параметрів мережі;
+      * збереження ідентифікатора пристрою;
+      * налаштування коефіцієнтів розрахунку;
+      * скидання до стандартних параметрів.
+3.3 Бізнес-логіка та налаштування IoT-клієнта
+3.3.1. Бізнес-логіка роботи з даними IoT-пристрою
+IoT клієнт реалізує повний цикл обробки даних: зчитування, розрахунок, передача на сервер та отримання рекомендацій. Наприклад, реалізовано обробку натискання на кнопку, яка емулює наповнення пляшки водою:
+const handleButtonDown = () => {
+    if (!dailyPlanId) {
+        alert("Please enter Daily Plan ID first");
+        return;
+    }
+
+
+    setIsFilling(true);
+    setCurrentVolume(0);
+
+
+    const bottleSettings = configureBottleSettings();
+    fillIntervalRef.current = setInterval(() => {
+        setCurrentVolume((prev) => {
+            return calculateNextVolume(prev);
+        });
+    }, bottleSettings.FILL_INTERVAL_MS);
+};
+
+
+У цьому коді при натисканні кнопки перевіряється, чи задано dailyPlanId. Якщо так, починається процес наповнення пляшки: обсяг встановлюється в нуль, і запускається інтервал, який кожні 50 мілісекунд збільшує поточний об’єм води за допомогою функції calculateNextVolume(). Ця функція обчислює новий об’єм з урахуванням максимального обмеження:
+export const calculateNextVolume = (currentVolume: number): number => {
+const bottleSettings = configureBottleSettings();
+const newVolume = currentVolume + bottleSettings.FILL_STEP_ML;
+    return newVolume > bottleSettings.MAX_CAPACITY_ML
+        ? bottleSettings.MAX_CAPACITY_ML
+        : newVolume;
+};
+
+
+Таким чином, IoT клієнт гарантує, що значення об’єму води ніколи не перевищує максимальну місткість пляшки.
+3.3.2 Обробка активності користувача
+Клієнт також підтримує відстеження активності користувача. Натискання на кнопку активності запускає таймер, а повторне натискання завершує активність і відправляє дані на сервер:
+const handleActivityClick = async (activityType: string) => {
+    if (!dailyPlanId) {
+        alert("Please enter Daily Plan ID first");
+        return;
+    }
+
+
+    const isActive = activeActivities.has(activityType);
+
+
+    if (!isActive) {
+        setActiveActivities((prev) => {
+            const newMap = new Map(prev);
+            newMap.set(activityType, Date.now());
+            return newMap;
+        });
+    } else {
+        const startTime = activeActivities.get(activityType)!;
+        const durationMin = calculateActivityDuration(startTime);
+
+
+        setActiveActivities((prev) => {
+            const newMap = new Map(prev);
+            newMap.delete(activityType);
+            return newMap;
+        });
+
+
+        await sendActivityData(activityType, startTime, durationMin);
+    }
+};
+
+
+Тут використовується Map для зберігання активностей. Початок активності фіксується через Date.now(), а після завершення обчислюється тривалість та виконується відправка на сервер через sendActivityData(). Інтенсивність активності враховується при розрахунку водного бонусу:
+export const calculateWaterBonus = (durationMin: number, intensity: string): number => {
+    const factor = intensity === "low" ? 4 : intensity === "medium" ? 7 : 10;
+    return Math.round(durationMin) * factor;
+};
+
+
+Таким чином, кожна активність корелює з додатковим об’ємом води, який користувач отримує за фізичне навантаження.
+3.3.3 Передача даних на сервер
+Передача даних здійснюється через HTTP. Наприклад, відправка даних про прийом води реалізована так: функція формує JSON-запит, відправляє його на endpoint /api/iot/intake і обробляє відповідь сервера. 
+async sendIntake(deviceId: string, dailyPlanId: number, volume: number) {
+    const apiSettings = configureApiSettings();
+    const res = await fetch(apiSettings.INTAKE_ENDPOINT, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            device_id: deviceId,
+            volume_ml: Math.round(volume),
+            intake_time: new Date().toISOString(),
+            daily_plan_id: dailyPlanId,
+            source: apiSettings.SOURCE,
+        }),
+    });
+    return await res.json();
+}
+
+
+3.3.4 Отримання рекомендацій
+Для отримання рекомендацій використовується запит до IoT API. 
+Сервер обробляє запити і повертає структуровані рекомендації, що базуються на останніх прийомах води та активностях користувача. Це дозволяє клієнту в реальному часі відображати персоналізовані поради.
+3.3.5 Налаштування IoT-клієнта
+Функції configure* повертають налаштування, що дозволяє легко змінювати параметри під час розробки та тестування. Наприклад, налаштування підключення виглядає так:
+export const configureConnectionInfo = () => ({
+    deviceId: "iot-device-001",
+    wifiIp: "192.168.1.100",
+    serverUrl: "https://api.iot.com",
+    status: "connected" as const,
+});
+
+
+API endpoints також конфігуруються через функцію configureApiSettings():
+export const configureApiSettings = () => ({
+    SOURCE: "iot" as const,
+    INTAKE_ENDPOINT: "/api/iot/intake",
+    RECOMMENDATIONS_ENDPOINT: "/api/iot/recommendations",
+    ACTIVITIES_ENDPOINT: "/api/activities",
+});
+
+
+4 ВИСНОВКИ
+У ході роботи було розроблено програмне забезпечення IoT-клієнта у вигляді веб-емуляції, інтегрованого в існуючий проект на Next.js. Було спроектовано архітектуру клієнта з виділенням основних модулів: модуль обробки даних, модуль мережевої взаємодії та модуль управління пристроями.
+Для візуалізації та взаємодії користувача реалізовано інтерфейс «умної пляшки» з кнопкою для емуляції прийому води та дисплеєм для відображення рекомендацій. Для управління активностями передбачені кнопки запуску та завершення активності, що дозволяють розраховувати водний бонус та відправляти дані на сервер.
+Бізнес-логіка включає обробку даних пристроїв, розрахунок об’єму води та рівня наповнення пляшки, обробку часу та інтенсивності активностей, а також відправку отриманих даних на сервер через спеціальні API-ендпоінти. Код реалізований у TypeScript із використанням функціонального підходу для конфігурації пристрою та налаштувань мережі.
+Було розроблено UML-діаграми прецедентів і діяльності, що відображають сценарії використання клієнта та послідовність дій під час передачі даних на сервер і роботи з активностями.
+Таким чином, створена веб-емуляція IoT-клієнта дозволяє перевірити бізнес-логіку, функції налаштування та взаємодію з серверною частиною, забезпечує візуальну демонстрацію роботи пристрою та є основою для подальшого розвитку та інтеграції з реальним IoT-пристроєм.
+
+
+ДОДАТОК А
+Відеозапис
+        Відеозапис презентації результатів лабораторної роботи: https://youtu.be/y2i_oD9Rozg
+00:23 Діаграма діяльності
+01:30 Діаграма прецедентів
+02:39 Архітектура IoT-клієнту
+04:18 Бізнес-логіка IoT-клієнту
+05:11 Обробка активностей користувача
+06:22 Налаштування IoT-клієнту
+06:46 Тестування IoT-клієнту
+
+
+
+
+
+
+
+
+
+
+ДОДАТОК Б
+Програмний код
+Логіка роботи IoT-клієнту:
+export interface IntakeResponse {
+    status: "ok" | "error";
+    intake_id?: number;
+    updated_plan?: {
+        dailyplan_id: number;
+        total_intake_ml: number;
+        deviation_ml: number;
+    };
+    recommendations?: Recommendation[];
+    error?: string;
+}
+
+
+export interface ActivityResponse {
+    activity_id: number;
+    dailyplan_id: number;
+    activity_type: string;
+    intensity: string;
+    start_time: Date;
+    end_time: Date;
+    duration_min: number;
+    water_bonus_ml: number;
+}
+
+
+const getIntensityFactor = (intensity: string): number => {
+    if (intensity === "low") return 4;
+    if (intensity === "medium") return 7;
+    return 10;
+};
+
+
+export const calculateWaterBonus = (durationMin: number, intensity: string): number => {
+    return Math.round(durationMin) * getIntensityFactor(intensity);
+};
+
+
+export const calculateActivityDuration = (startTime: number): number => {
+    const activitySettings = configureActivitySettings();
+    const elapsedSeconds = (Date.now() - startTime) / 1000;
+    return elapsedSeconds * activitySettings.TIME_ACCELERATION;
+};
+
+
+export const calculateWaterLevel = (currentVolume: number): number => {
+    const bottleSettings = configureBottleSettings();
+    return Math.min((currentVolume / bottleSettings.MAX_CAPACITY_ML) * 100, 100);
+};
+
+
+export const calculateNextVolume = (currentVolume: number): number => {
+    const bottleSettings = configureBottleSettings();
+    const newVolume = currentVolume + bottleSettings.FILL_STEP_ML;
+    return newVolume > bottleSettings.MAX_CAPACITY_ML
+        ? bottleSettings.MAX_CAPACITY_ML
+        : newVolume;
+};
+
+
+export const iotClientService = {
+    async sendIntake(
+        deviceId: string,
+        dailyPlanId: number,
+        volume: number
+    ): Promise<IntakeResponse> {
+        try {
+            const apiSettings = configureApiSettings();
+            const res = await fetch(apiSettings.INTAKE_ENDPOINT, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    device_id: deviceId,
+                    volume_ml: Math.round(volume),
+                    intake_time: new Date().toISOString(),
+                    daily_plan_id: dailyPlanId,
+                    source: apiSettings.SOURCE,
+                }),
+            });
+
+
+            const data = await res.json();
+
+
+            if (data.ok) {
+                return {
+                    status: "ok",
+                    ...data.data,
+                };
+            } else {
+                return {
+                    status: "error",
+                    error: data.error?.message || "Unknown error",
+                };
+            }
+        } catch (error: any) {
+            return {
+                status: "error",
+                error: error.message || "Failed to send data",
+            };
+        }
+    },
+
+
+    async sendActivity(
+        dailyPlanId: number,
+        activityType: string,
+        startTime: number,
+        durationMin: number
+    ): Promise<ActivityResponse | null> {
+        try {
+            const activitySettings = configureActivitySettings();
+            const apiSettings = configureApiSettings();
+            const intensity = activitySettings.DEFAULT_INTENSITY;
+            const res = await fetch(apiSettings.ACTIVITIES_ENDPOINT, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    dailyplan_id: dailyPlanId,
+                    activity_type: activityType,
+                    intensity: intensity,
+                    start_time: new Date(startTime).toISOString(),
+                    end_time: new Date().toISOString(),
+                    duration_min: Math.round(durationMin),
+                }),
+            });
+
+
+            const data = await res.json();
+
+
+            if (data.ok) {
+                return data.data;
+            }
+            return null;
+        } catch (error) {
+            return null;
+        }
+    },
+
+
+    async getRecommendations(
+        deviceId: string,
+        dailyPlanId: number
+    ): Promise<Recommendation[]> {
+        try {
+            const apiSettings = configureApiSettings();
+            const res = await fetch(
+                `${apiSettings.RECOMMENDATIONS_ENDPOINT}?device_id=${deviceId}&daily_plan_id=${dailyPlanId}`
+            );
+            const data = await res.json();
+
+
+            if (data.ok) {
+                return data.data || [];
+            }
+            return [];
+        } catch (error) {
+            return [];
+        }
+    },
+
+
+    async getLastIntakeRecommendations(
+        dailyPlanId: number
+    ): Promise<Recommendation[]> {
+        try {
+            const intakesRes = await fetch(
+                `/api/intakes?dailyplan_id=${dailyPlanId}`
+            );
+            const intakesData = await intakesRes.json();
+
+
+            if (intakesData.ok && intakesData.data && intakesData.data.length > 0) {
+                const sortedIntakes = [...intakesData.data].sort((a, b) => {
+                    const timeA = a.intake_time
+                        ? new Date(a.intake_time).getTime()
+                        : 0;
+                    const timeB = b.intake_time
+                        ? new Date(b.intake_time).getTime()
+                        : 0;
+                    return timeB - timeA;
+                });
+                const lastIntake = sortedIntakes[0];
+
+
+                const recommendationsRes = await fetch(
+                    `/api/recommendations?intake_id=${lastIntake.intake_id}`
+                );
+                const recommendationsData = await recommendationsRes.json();
+
+
+                if (recommendationsData.ok) {
+                    return recommendationsData.data || [];
+                }
+            }
+            return [];
+        } catch (error) {
+            return [];
+        }
+    },
+};
+Логіка додавання прийому води:
+async processIntake(data: IoTIntakeRequest): Promise<IoTIntakeResponse> {
+        try {
+            const plan = await dailyPlanService.findById(data.daily_plan_id);
+
+
+            const intake = await intakeService.create({
+                dailyplan_id: data.daily_plan_id,
+                volume_ml: data.volume_ml,
+                intake_time: data.intake_time,
+            });
+
+
+            const updatedPlan = await dailyPlanService.findById(data.daily_plan_id);
+
+
+            const recommendations = await recommendationService.findAll({
+                intake_id: intake.intake_id,
+            });
+
+
+            return {
+                status: "ok",
+                intake_id: intake.intake_id,
+                updated_plan: {
+                    dailyplan_id: updatedPlan.dailyplan_id,
+                    total_intake_ml: updatedPlan.total_intake_ml || 0,
+                    deviation_ml: updatedPlan.deviation_ml || 0,
+                },
+                recommendations: recommendations.map((rec) => ({
+                    recommendation_id: rec.recommendation_id,
+                    recommend_type: rec.recommend_type || "",
+                    message: rec.message || "",
+                    severity: (rec.severity as "low" | "medium" | "high") || "low",
+                })),
+            };
+        } catch (error: any) {
+            return {
+                status: "error",
+                error: error.message || "Failed to process intake",
+            };
+        }
+    },
