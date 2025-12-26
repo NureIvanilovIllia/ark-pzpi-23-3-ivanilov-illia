@@ -1,0 +1,450 @@
+ХАРКІВСЬКИЙ НАЦІОНАЛЬНИЙ
+УНІВЕРСИТЕТ РАДІОЕЛЕКТРОНІКИ
+ 
+Кафедра «Програмної інженерії»
+ 
+ 
+
+
+
+
+ЗВІТ
+з лабораторної роботи № 5
+з дисципліни «Аналіз та рефакторинг коду»
+ 
+
+
+
+ 
+
+
+
+
+
+
+
+
+
+
+Виконав:                                                                       ст. викладач кафедри ПІ:
+ст. гр. ПЗПІ-23-3                                                                Сокорчук Ігор Петрович
+Іванілов І. В.
+
+
+
+
+
+
+
+
+
+
+
+Харків 2025
+
+
+
+
+
+
+
+
+1 ІСТОРІЯ ЗМІН
+Таблиця 1.1 - Історія змін
+№
+	Дата
+	Версія звіту
+	Опис змін та виправлень
+	1
+	25.12.2025
+	0.1
+	Створено звіт
+	2 ЗАВДАННЯ
+Мета роботи
+Метою роботи є навчитися розгортати програмну систему, перевіряти її функціональність, виконувати налаштування, а також документувати та демонструвати роботу системи.
+Для досягнення цієї мети поставлено такі завдання:
+1. Розгортання створеної програмної системи:
+Використовуючи сучасні інструменти для розгортання, зокрема Docker, необхідно підняти всі компоненти системи: серверну частину, веб-клієнт, мобільний клієнт та IoT-клієнт. При цьому слід налаштувати середовище для роботи програмної системи, включаючи сервер, базу даних та необхідні мережеві параметри.
+2. Перевірка та налаштування роботи розгорнутої системи:
+Після розгортання слід провести комплексну перевірку стабільності та коректності роботи усіх компонентів, зокрема серверної частини, IoT-клієнта, бази даних та API. Крім того, необхідно виконати налаштування параметрів серверної частини та клієнтських застосунків, а також мережевих протоколів, щоб забезпечити коректну взаємодію усіх елементів системи.
+3. Демонстрація функціональності системи:
+Слід продемонструвати всі функції програмної системи, передбачені у розділі 2.2 Vision & Scope, включаючи бізнес-логіку, адміністративні функції та взаємодію між серверною частиною та клієнтами. Необхідно перевірити реалізацію всіх необхідних функціональних можливостей та підтвердити їх коректну роботу.
+
+
+
+
+
+
+3 ОПИС ВИКОНАНОЇ РОБОТИ
+3.1 Опис розгортання системи
+У процесі виконання роботи була проведена комплексна підготовка та розгортання програмної системи, включаючи серверну частину, базу даних, веб-клієнт та IoT-клієнт.
+1. Розгортання системи за допомогою Docker
+Для локального розгортання системи використано Docker та Docker Compose. Основним завданням було забезпечити ізольоване та відтворюване середовище, де всі компоненти працюють незалежно, але взаємодіють між собою через мережу Docker.
+Dockerfile для IoT-клієнта було побудовано:
+FROM node:20-alpine AS base
+RUN apk add --no-cache libc6-compat
+WORKDIR /app
+
+
+FROM base AS deps
+COPY package.json package-lock.json* ./
+RUN npm ci
+
+
+FROM base AS builder
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+RUN npx prisma generate
+RUN npm run build
+
+
+FROM base AS runner
+WORKDIR /app
+COPY --from=builder /app/.next/standalone ./
+COPY --from=builder /app/.next/static ./.next/static
+COPY --from=builder /app/node_modules ./node_modules
+EXPOSE 3000
+CMD ["node", "server.js"]
+
+
+Такий підхід дозволив:
+   * Мінімізувати розмір фінального контейнера.
+   * Відокремити встановлення залежностей (deps) від збірки проєкту (builder).
+
+   * Використати чистий контейнер для запуску (runner), де вже присутній тільки готовий код та залежності.
+Docker Compose забезпечив одночасний запуск бази даних PostgreSQL та усіх сервісів:
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: iot_user
+      POSTGRES_PASSWORD: iot_password
+      POSTGRES_DB: iot_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+
+  app:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+DATABASE_URL: postgresql://iot_user:iot_password@postgres:5432/iot_db?schema=public
+    depends_on:
+      postgres:
+        condition: service_healthy
+volumes:
+  postgres_data:
+
+
+2. Конфігурація середовища
+Для підключення до бази даних використано змінну оточення DATABASE_URL, що дозволяє легко змінювати параметри доступу до PostgreSQL без модифікації коду.
+База даних була створена всередині контейнера, і за допомогою Prisma виконано міграції:
+npx prisma migrate deploy --schema=./prisma/schema.prisma
+
+
+Це забезпечило автоматичне створення всіх таблиць та зв’язків відповідно до схеми, описаної в schema.prisma.
+3. Налаштування компонентів
+Всі сервіси були налаштовані на роботу у виділених портах:
+      * IoT-клієнт працює на 3000.
+      * PostgreSQL доступна на 5432.
+Сервіси взаємодіють через внутрішню мережу Docker, що дозволяє не відкривати всі порти назовні та забезпечує безпечну комунікацію між контейнерами.
+4. Пояснення вибору технологій
+      * Docker та Docker Compose використано для ізоляції компонентів, забезпечення відтворюваності та швидкого розгортання.
+      * PostgreSQL обрана як надійна реляційна СУБД для зберігання структурованих даних користувачів та IoT-пристроїв.
+      * Prisma ORM забезпечує типобезпечну роботу з базою даних та зручне управління міграціями.
+      * Node.js та Next.js дозволяють реалізувати серверну логіку та веб-інтерфейс у єдиному середовищі з підтримкою сучасних технологій.
+      * Використання контейнерів для кожного сервісу гарантує незалежність компонентів та спрощує масштабування системи у майбутньому.
+3.2 Центральні фрагменти коду
+1. Логіка бізнес-процесів серверної частини
+обробка прийому води та перерахунок щоденного плану
+async processIntake(data: IoTIntakeRequest): Promise<IoTIntakeResponse> {
+    const intake = await intakeService.create({
+        dailyplan_id: data.daily_plan_id,
+        volume_ml: data.volume_ml,
+        intake_time: data.intake_time,
+    });
+const updatedPlan = await dailyPlanService.recalculateFromIntakes(data.daily_plan_id);
+
+
+    const recommendations = await recommendationService.findAll({ intake_id: intake.intake_id });
+
+
+    return { intake_id: intake.intake_id, updated_plan: updatedPlan, recommendations };
+}
+
+
+Цей фрагмент реалізує основну бізнес-логіку для прийому води:
+      * створює запис про прийом у базі (intakeService.create),
+      * перераховує щоденний план з урахуванням нового прийому (dailyPlanService.recalculateFromIntakes),
+      * генерує рекомендації для користувача (recommendationService.findAll).
+2. Логіка адміністрування серверної частини
+CRUD операції для користувачів
+export async function GET(request: NextRequest) {
+    const users = await userService.findAll();
+    return successResponse(users);
+}
+
+
+export async function POST(request: NextRequest) {
+    const body = await request.json();
+    const user = await userService.create(body);
+    return successResponse(user, 201);
+}
+
+Цей код показує, як реалізовано адміністративні операції:
+      * отримання списку користувачів (GET),
+      * створення нового користувача (POST).
+Аналогічно реалізовані PATCH та DELETE для редагування та видалення. Це дозволяє адміністратору керувати даними в системі через REST API.
+3. Логіка налаштування IoT клієнта та взаємодії з сервером
+Відправка даних про прийом води та активність
+async sendIntake(deviceId: string, dailyPlanId: number, volume: number) {
+    const res = await fetch(`/api/iot/intake`, {
+        method: "POST",
+        body: JSON.stringify({ device_id: deviceId, daily_plan_id: dailyPlanId, volume_ml: volume, intake_time: new Date().toISOString() }),
+    });
+    return await res.json();
+}
+
+
+async sendActivity(dailyPlanId: number, activityType: string, startTime: number, durationMin: number) {
+    const res = await fetch(`/api/activities`, {
+        method: "POST",
+        body: JSON.stringify({ dailyplan_id: dailyPlanId, activity_type: activityType, start_time: new Date(startTime).toISOString(), duration_min: durationMin }),
+    });
+    return await res.json();
+}
+
+
+Ці функції реалізують основну взаємодію IoT клієнта із сервером:
+      * відправка даних про прийом води (sendIntake),
+      * відправка даних про фізичну активність (sendActivity).
+Вони забезпечують синхронізацію пристрою з серверною частиною та тригерять перерахунок планів і генерацію рекомендацій.
+
+
+4 ВИСНОВКИ
+Під час виконання роботи було успішно розгорнуто програмну систему на основі Docker-контейнерів. Було налаштовано серверну частину, базу даних PostgreSQL, веб-клієнт та IoT-клієнт. Це дозволило створити ізольоване та відтворюване середовище для роботи системи.
+        Функціональність серверної частини
+        Було реалізовано основні бізнес-процеси:
+         * обробку прийомів води,
+         * розрахунок відхилень від плану,
+         * генерацію рекомендацій на основі аналітики,
+         * обробку фізичних активностей та перерахунок щоденних планів.
+Серверна частина надає REST API для взаємодії з клієнтами та адміністрування, що забезпечує коректну роботу всіх компонентів системи.
+         1. Адміністрування системи
+Виконано реалізацію CRUD-операцій для користувачів, щоденних планів та інших сутностей. Адміністратор має можливість переглядати, створювати, редагувати та видаляти дані через API. Також реалізовано статистику споживання води та активностей, що дозволяє отримувати аналітичні дані для контролю виконання планів.
+         2. IoT-клієнт та взаємодія з сервером
+IoT-клієнт було налаштовано для відправки даних про прийоми води та фізичну активність. Впроваджено розрахункові функції для симуляції роботи пристрою, обчислення водного бонусу та контролю рівня води в пляшці. Взаємодія з сервером здійснюється через REST API, що забезпечує синхронізацію та оновлення рекомендацій у реальному часі.
+         3. Технологічні рішення
+Вибір Docker для розгортання дозволив створити ізольоване середовище та легко масштабувати систему. Використання PostgreSQL забезпечує надійне зберігання даних. Next.js та TypeScript дозволили реалізувати сучасний веб-клієнт та IoT-клієнт із чистою архітектурою і строгим типізуванням.
+
+
+
+
+
+ДОДАТОК А
+Відеозапис
+Відеозапис презентації результатів лабораторної роботи: https://youtu.be/ojJ0KkA1jWU
+00:17 Опис образів 
+01:22 Опис Dockerfile 
+03:00 Тестування адміністрування системи 
+03:40 Огляд статистики
+04:34 Експорт статистики 
+05:04 Тестування IoT-клієнту
+05:31 Додавання прийому води 
+05:50 Тестування рекомендацій 
+06:14 Тестування активностей
+
+
+
+
+
+
+
+
+
+
+
+
+ДОДАТОК Б
+Програмний код
+        Створення прийому води:
+async processIntake(data: IoTIntakeRequest): Promise<IoTIntakeResponse> {
+    try {
+        const plan = await dailyPlanService.findById(data.daily_plan_id);
+
+
+        const intake = await intakeService.create({
+            dailyplan_id: data.daily_plan_id,
+            volume_ml: data.volume_ml,
+            intake_time: data.intake_time,
+        });
+
+
+        const updatedPlan = await dailyPlanService.findById(data.daily_plan_id);
+
+
+        const recommendations = await recommendationService.findAll({
+            intake_id: intake.intake_id,
+        });
+
+
+        return {
+            status: "ok",
+            intake_id: intake.intake_id,
+            updated_plan: {
+                dailyplan_id: updatedPlan.dailyplan_id,
+                total_intake_ml: updatedPlan.total_intake_ml || 0,
+                deviation_ml: updatedPlan.deviation_ml || 0,
+            },
+            recommendations: recommendations.map((rec) => ({
+                recommendation_id: rec.recommendation_id,
+                recommend_type: rec.recommend_type || "",
+                message: rec.message || "",
+                severity: (rec.severity as "low" | "medium" | "high") || "low",
+            })),
+        };
+    } catch (error: any) {
+        return {
+            status: "error",
+            error: error.message || "Failed to process intake",
+        };
+    }
+}
+Розрахунок відхилення від норми:
+export const calculateDeviationMl = async (
+    dailyplanId: number,
+    totalIntakeMl: number
+): Promise<number | null> => {
+    const plan = await prisma.dailyPlan.findUnique({
+        where: { dailyplan_id: dailyplanId },
+    });
+
+
+    if (!plan || !plan.target) return null;
+
+
+    const now = new Date();
+    const planStartOfDay = normalizeToStartOfDay(plan.date);
+    const elapsedMs = now.getTime() - planStartOfDay.getTime();
+    const elapsedHours = elapsedMs / (1000 * 60 * 60);
+
+
+    if (elapsedHours < 0) {
+        return Math.round(totalIntakeMl / 100) * 100;
+    }
+
+
+    const activeHours = Math.min(elapsedHours, 24);
+    const expectedMl = (plan.target / 24) * activeHours;
+    const deviation = totalIntakeMl - expectedMl;
+    return Math.round(deviation / 100) * 100;
+};
+
+
+Docker.compose:
+version: "3.8"
+
+
+services:
+    postgres:
+        image: postgres:16-alpine
+        container_name: iot-postgres
+        restart: unless-stopped
+        environment:
+            POSTGRES_USER: iot_user
+            POSTGRES_PASSWORD: iot_password
+            POSTGRES_DB: iot_db
+        ports:
+            - "5432:5432"
+        volumes:
+            - postgres_data:/var/lib/postgresql/data
+        healthcheck:
+            test: ["CMD-SHELL", "pg_isready -U iot_user -d iot_db"]
+            interval: 10s
+            timeout: 5s
+            retries: 5
+
+
+    app:
+        build:
+            context: .
+            dockerfile: Dockerfile
+        container_name: iot-app
+        restart: unless-stopped
+        ports:
+            - "3000:3000"
+        environment:
+            DATABASE_URL: postgresql://iot_user:iot_password@postgres:5432/iot_db?schema=public
+            NODE_ENV: production
+        depends_on:
+            postgres:
+                condition: service_healthy
+        volumes:
+            - ./prisma:/app/prisma
+            - ./src/generated:/app/src/generated
+        command: sh -c "npx prisma migrate deploy && node server.js"
+
+
+volumes:
+    postgres_data:
+
+
+Dockerdfile:
+FROM node:20-alpine AS base
+
+
+RUN apk add --no-cache libc6-compat
+WORKDIR /app
+
+
+FROM base AS deps
+COPY package.json package-lock.json* ./
+RUN npm ci
+
+
+FROM base AS builder
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+
+
+ENV NEXT_TELEMETRY_DISABLED 1
+
+
+RUN npx prisma generate 
+RUN npm run build
+
+
+FROM base AS runner
+WORKDIR /app
+
+
+ENV NODE_ENV production
+ENV NEXT_TELEMETRY_DISABLED 1
+
+
+RUN addgroup --system --gid 1001 nodejs
+RUN adduser --system --uid 1001 nextjs
+
+
+COPY --from=builder /app/public ./public
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/prisma ./prisma
+COPY --from=builder /app/prisma.config.ts ./prisma.config.ts
+
+
+USER nextjs
+
+
+EXPOSE 3000
+
+
+ENV PORT 3000
+ENV HOSTNAME "0.0.0.0"
+
+
+CMD ["node", "server.js"]

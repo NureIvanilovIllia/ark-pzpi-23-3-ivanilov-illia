@@ -1,0 +1,42 @@
+version: "3.8"
+
+services:
+    postgres:
+        image: postgres:16-alpine
+        container_name: iot-postgres
+        restart: unless-stopped
+        environment:
+            POSTGRES_USER: iot_user
+            POSTGRES_PASSWORD: iot_password
+            POSTGRES_DB: iot_db
+        ports:
+            - "5432:5432"
+        volumes:
+            - postgres_data:/var/lib/postgresql/data
+        healthcheck:
+            test: ["CMD-SHELL", "pg_isready -U iot_user -d iot_db"]
+            interval: 10s
+            timeout: 5s
+            retries: 5
+
+    app:
+        build:
+            context: .
+            dockerfile: Dockerfile
+        container_name: iot-app
+        restart: unless-stopped
+        ports:
+            - "3000:3000"
+        environment:
+            DATABASE_URL: postgresql://iot_user:iot_password@postgres:5432/iot_db?schema=public
+            NODE_ENV: production
+        depends_on:
+            postgres:
+                condition: service_healthy
+        volumes:
+            - ./prisma:/app/prisma
+            - ./src/generated:/app/src/generated
+        command: sh -c "npx prisma migrate deploy && node server.js"
+
+volumes:
+    postgres_data:
